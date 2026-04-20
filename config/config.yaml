@@ -1,0 +1,157 @@
+# Polymarket Market Maker Configuration
+# Sensitive values (keys, secrets) should be set via environment variables in .env
+
+# ─── Exchange ─────────────────────────────────────────────────────────────────
+exchange:
+  clob_host: "https://clob.polymarket.com"
+  gamma_host: "https://gamma-api.polymarket.com"
+  ws_market_host: "wss://ws-subscriptions-clob.polymarket.com/ws/market"
+  ws_user_host: "wss://ws-subscriptions-clob.polymarket.com/ws/user"
+  chain_id: 137  # Polygon mainnet
+  # signature_type: 0 = EOA (MetaMask/hw wallet), 1 = Magic/email, 2 = browser proxy
+  signature_type: 0
+
+# ─── Market Selection ─────────────────────────────────────────────────────────
+market_selection:
+  # Maximum number of markets to trade simultaneously
+  max_markets: 30
+  # Minimum reward pool per market (USD) to bother quoting
+  min_reward_pool_usd: 500
+  # Skip markets where midpoint is outside [min_mid, max_mid] - near-boundary
+  # markets have one-sided scoring (no single-sided penalty) but are riskier
+  min_midpoint: 0.06
+  max_midpoint: 0.94
+  # Only trade markets with CLOB enabled
+  require_clob_enabled: true
+  # Refresh market list every N seconds
+  refresh_interval_seconds: 300
+
+# ─── Quoting Strategy ─────────────────────────────────────────────────────────
+quoting:
+  # Desired spread as fraction of max_incentive_spread (0.0–1.0).
+  # 0.0 = quote at midpoint (maximum reward score, maximum adverse selection risk)
+  # 0.5 = quote at half the max allowed spread (good balance)
+  # 0.9 = quote at 90% of the limit (safe but lower scores)
+  target_spread_fraction: 0.25
+
+  # Size for each resting order (USDC / shares).
+  # Will be clipped to [min_incentive_size, max_order_size].
+  base_order_size: 200.0
+
+  # Maximum order size allowed per side per market (USDC)
+  max_order_size: 500.0
+
+  # Inventory skew: if position (in shares) exceeds this threshold,
+  # start widening the spread on the long side to reduce exposure.
+  inventory_skew_threshold: 400.0
+
+  # Maximum inventory position per market (shares). Quoting stops above this.
+  max_inventory_per_market: 2000.0
+
+  # Quote refresh interval (seconds). Quotes are also refreshed on orderbook events.
+  refresh_interval_seconds: 15
+
+  # Cancel and replace if our quote is more than this fraction away from optimal
+  requote_threshold: 0.005
+
+  # Minimum time (seconds) between cancel+requote cycles to avoid rate limits
+  min_requote_interval_seconds: 2.0
+
+  # ── poly-maker-style controls ──────────────────────────────────────────────
+  # Minimum shares at best price to treat it as real liquidity
+  min_liquidity_size: 50.0
+  # Don't buy if bid liquidity / ask liquidity ratio is below this
+  liquidity_ratio_min: 0.5
+  # Minimum profit % above avg cost before placing a sell (take-profit floor)
+  take_profit_pct: 3.0
+  # Stop-loss: sell at market if unrealized PnL% drops below this
+  stop_loss_pct: -15.0
+  # Hours to pause buying after a stop-loss fires on a market
+  risk_off_hours: 4.0
+  # Quote both YES and NO tokens to double reward-earning surface
+  quote_no_token: true
+
+# ─── Pricing ──────────────────────────────────────────────────────────────────
+pricing:
+  # Primary source: "odds_api" (Pinnacle via The Odds API) or "orderbook"
+  # "orderbook" is sufficient for the join-at-best strategy — no external key needed.
+  # Switch to "odds_api" only if you have a valid ODDS_API_KEY and want to fade
+  # quotes based on a sharper external price source (useful for sports markets).
+  primary_source: "orderbook"
+
+  # Fallback to orderbook midpoint if primary source is unavailable
+  fallback_to_orderbook: true
+
+  # Maximum staleness (seconds) before a price is considered stale
+  max_price_age_seconds: 120
+
+  # The Odds API configuration (https://the-odds-api.com)
+  # API key set via ODDS_API_KEY environment variable
+  odds_api:
+    base_url: "https://api.the-odds-api.com/v4"
+    # Bookmakers to use for consensus pricing (Pinnacle is "pinnacle")
+    bookmakers: ["pinnacle"]
+    # Fallback bookmakers if Pinnacle unavailable
+    fallback_bookmakers: ["draftkings", "fanduel", "betmgm"]
+    # Cache odds data for this many seconds
+    cache_ttl_seconds: 30
+    # Supported regions: us, us2, uk, eu, au
+    regions: ["eu", "us"]
+
+  # Vig removal method: "basic" (normalize), "shin" (Shin method), "power"
+  vig_removal: "shin"
+
+# ─── Execution ────────────────────────────────────────────────────────────────
+execution:
+  # Maximum orders per second globally
+  order_rate_limit: 5
+  # Maximum cancel+place operations per minute
+  cancel_replace_rate_limit: 30
+  # Retry failed orders N times before giving up
+  max_order_retries: 3
+  # Delay between retries (seconds)
+  retry_delay_seconds: 1.0
+  # Fraction of starting capital to keep permanently free (never locked in BUY orders).
+  # 0.05 = keep 5% of initial balance as an operational buffer at all times.
+  cash_reserve_fraction: 0.05
+  # Maker fee in basis points applied in paper mode.
+  # Polymarket CLOB charges 0% for limit-order makers — set higher to stress-test margins.
+  paper_maker_fee_bps: 0
+
+# ─── Risk Management ──────────────────────────────────────────────────────────
+risk:
+  # Maximum total USDC deployed in resting orders at any time
+  max_total_usdc_in_orders: 12000.0
+
+  # Maximum drawdown from peak before halting all quoting (USDC)
+  max_drawdown_usdc: 2000.0
+
+  # Maximum single-market loss before pausing that market (USDC)
+  max_market_loss_usdc: 400.0
+
+  # Halt duration after circuit breaker trips (seconds)
+  circuit_breaker_cooldown_seconds: 300
+
+  # Stop quoting a market if its mid price moves more than this in 60s
+  max_mid_move_60s: 0.15
+
+  # Maximum position as fraction of total USDC balance
+  max_position_fraction: 0.15
+
+# ─── Logging ──────────────────────────────────────────────────────────────────
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "console"  # "console" (human-readable) or "json" (machine-readable)
+  file: "logs/polymarket-mm.log"
+  # Rotate log files larger than this (bytes)
+  max_bytes: 10485760  # 10MB
+  backup_count: 5
+
+# ─── Metrics ──────────────────────────────────────────────────────────────────
+metrics:
+  # Print a performance summary every N seconds (live mode)
+  summary_interval_seconds: 60
+  # Paper trading dashboard refresh interval (seconds)
+  paper_dashboard_interval_seconds: 15
+  # Path for persistent state (positions, PnL) across restarts
+  state_file: "data/state.json"
