@@ -1,0 +1,69 @@
+# Smoke test config — live mode, minimal exposure to validate API surface.
+# Run with: python -m src.main --config config/config.smoketest.yaml
+# Watch logs for batch_order_placed lines. Ctrl+C after ~2 minutes.
+
+exchange:
+  clob_host: "https://clob.polymarket.com"
+  gamma_host: "https://gamma-api.polymarket.com"
+  ws_market_host: "wss://ws-subscriptions-clob.polymarket.com/ws/market"
+  ws_user_host: "wss://ws-subscriptions-clob.polymarket.com/ws/user"
+  chain_id: 137
+  signature_type: 0
+
+market_selection:
+  max_markets: 1            # one market only
+  min_reward_pool_usd: 0    # don't filter — just grab the top market
+  min_midpoint: 0.03        # allow cheap tokens (0.03–0.14 range keeps cost ≤ $2.80)
+  max_midpoint: 0.14        # 20 tokens × 0.14 = $2.80 — within $2.93 wallet balance
+  require_clob_enabled: true
+  refresh_interval_seconds: 300
+
+quoting:
+  target_spread_fraction: 0.50
+  base_order_size: 20       # match min_incentive_size so orders qualify for rewards
+  max_order_size: 20        # same — 20 tokens at ≤$0.14 = ≤$2.80 per order
+  inventory_skew_threshold: 10.0
+  max_inventory_per_market: 40.0
+  refresh_interval_seconds: 15
+  requote_threshold: 0.005
+  min_requote_interval_seconds: 5.0
+  min_liquidity_size: 1.0
+  liquidity_ratio_min: 0.0
+  take_profit_pct: 1.0
+  stop_loss_pct: -50.0
+  risk_off_hours: 1.0
+  quote_no_token: false     # YES side only for simplicity
+
+pricing:
+  primary_source: "orderbook"
+  fallback_to_orderbook: true
+  max_price_age_seconds: 120
+  vig_removal: "shin"
+
+execution:
+  order_rate_limit: 2
+  cancel_replace_rate_limit: 10
+  max_order_retries: 2
+  retry_delay_seconds: 2.0
+  cash_reserve_fraction: 0.50   # keep 50% free — tiny exposure
+  paper_maker_fee_bps: 0
+
+risk:
+  max_total_usdc_in_orders: 2.8   # hard cap: 20 tokens × $0.14 = $2.80 max
+  max_drawdown_usdc: 3.0
+  max_market_loss_usdc: 3.0
+  circuit_breaker_cooldown_seconds: 60
+  max_mid_move_60s: 0.30
+  max_position_fraction: 0.50
+
+logging:
+  level: "INFO"             # DEBUG floods terminal with hpack binary noise
+  format: "console"
+  file: "logs/smoketest.log"
+  max_bytes: 10485760
+  backup_count: 2
+
+metrics:
+  summary_interval_seconds: 30
+  paper_dashboard_interval_seconds: 15
+  state_file: "data/smoketest_state.json"
